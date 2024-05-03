@@ -1,3 +1,14 @@
+v0.11.22 - TBD
+=====================
+* Fix a bug relating to node detachment.
+* Fix a bug where amplification with `ma_device_set_master_volume()` does not work.
+* ALSA: Fix some warnings relating to unhandled return value of `read()`.
+* DirectSound: Add support for specifying an explicit window handle for SetCooperativeLevel().
+* Web: Fix ScriptProcessorNode path when compiling with `--closure=1`. Note that the Audio Worklets path is not currently working due to the callback specified in `emscripten_create_wasm_audio_worklet_processor_async` never getting fired.
+* Web: Fix an error with the unlocked notification when compiling as C++.
+* AAudio: The default minimum SDK version has been increased from 26 to 27 when enabling AAudio. If you need to support version 26, you can use `#define MA_AAUDIO_MIN_ANDROID_SDK_VERSION 26`.
+
+
 v0.11.21 - 2023-11-15
 =====================
 * Add new ma_device_notification_type_unlocked notification. This is used on Web and will be fired after the user has performed a gesture and thus unlocked the ability to play audio.
