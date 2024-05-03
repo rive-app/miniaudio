@@ -10078,6 +10078,7 @@ struct ma_encoder
     ma_encoder_write_pcm_frames_proc onWritePCMFrames;
     void* pUserData;
     void* pInternalEncoder;
+#ifndef MA_NO_RESOURCE_MANAGER
     union
     {
         struct
@@ -10086,6 +10087,7 @@ struct ma_encoder
             ma_vfs_file file;
         } vfs;
     } data;
+#endif
 };
 
 MA_API ma_result ma_encoder_init(ma_encoder_write_proc onWrite, ma_encoder_seek_proc onSeek, void* pUserData, const ma_encoder_config* pConfig, ma_encoder* pEncoder);
