@@ -65914,12 +65914,13 @@ MA_API void ma_encoder_uninit(ma_encoder* pEncoder)
     if (pEncoder->onUninit) {
         pEncoder->onUninit(pEncoder);
     }
-
+#ifndef MA_NO_RESOURCE_MANAGER
     /* If we have a file handle, close it. */
     if (pEncoder->onWrite == ma_encoder__on_write_vfs) {
         ma_vfs_or_default_close(pEncoder->data.vfs.pVFS, pEncoder->data.vfs.file);
         pEncoder->data.vfs.file = NULL;
     }
+#endif
 }
 
 
