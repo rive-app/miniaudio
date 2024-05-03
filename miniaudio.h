@@ -60879,7 +60879,7 @@ static ma_result ma_decoder_init_from_vtable__internal(const ma_decoding_backend
 
     return MA_SUCCESS;
 }
-
+#ifndef MA_NO_RESOURCE_MANAGER
 static ma_result ma_decoder_init_from_file__internal(const ma_decoding_backend_vtable* pVTable, void* pVTableUserData, const char* pFilePath, const ma_decoder_config* pConfig, ma_decoder* pDecoder)
 {
     ma_result result;
@@ -60937,7 +60937,7 @@ static ma_result ma_decoder_init_from_file_w__internal(const ma_decoding_backend
 
     return MA_SUCCESS;
 }
-
+#endif
 static ma_result ma_decoder_init_from_memory__internal(const ma_decoding_backend_vtable* pVTable, void* pVTableUserData, const void* pData, size_t dataSize, const ma_decoder_config* pConfig, ma_decoder* pDecoder)
 {
     ma_result result;
@@ -61004,6 +61004,7 @@ static ma_result ma_decoder_init_custom__internal(const ma_decoder_config* pConf
     return MA_NO_BACKEND;
 }
 
+#ifndef MA_NO_RESOURCE_MANAGER
 static ma_result ma_decoder_init_custom_from_file__internal(const char* pFilePath, const ma_decoder_config* pConfig, ma_decoder* pDecoder)
 {
     ma_result result = MA_NO_BACKEND;
@@ -61061,6 +61062,7 @@ static ma_result ma_decoder_init_custom_from_file_w__internal(const wchar_t* pFi
     /* Getting here means we couldn't find a backend. */
     return MA_NO_BACKEND;
 }
+#endif
 
 static ma_result ma_decoder_init_custom_from_memory__internal(const void* pData, size_t dataSize, const ma_decoder_config* pConfig, ma_decoder* pDecoder)
 {
@@ -61759,7 +61761,7 @@ static ma_result ma_decoder_init_wav__internal(const ma_decoder_config* pConfig,
 {
     return ma_decoder_init_from_vtable__internal(&g_ma_decoding_backend_vtable_wav, NULL, pConfig, pDecoder);
 }
-
+#ifndef MA_NO_RESOURCE_MANAGER
 static ma_result ma_decoder_init_wav_from_file__internal(const char* pFilePath, const ma_decoder_config* pConfig, ma_decoder* pDecoder)
 {
     return ma_decoder_init_from_file__internal(&g_ma_decoding_backend_vtable_wav, NULL, pFilePath, pConfig, pDecoder);
@@ -61769,7 +61771,7 @@ static ma_result ma_decoder_init_wav_from_file_w__internal(const wchar_t* pFileP
 {
     return ma_decoder_init_from_file_w__internal(&g_ma_decoding_backend_vtable_wav, NULL, pFilePath, pConfig, pDecoder);
 }
-
+#endif
 static ma_result ma_decoder_init_wav_from_memory__internal(const void* pData, size_t dataSize, const ma_decoder_config* pConfig, ma_decoder* pDecoder)
 {
     return ma_decoder_init_from_memory__internal(&g_ma_decoding_backend_vtable_wav, NULL, pData, dataSize, pConfig, pDecoder);
@@ -62381,7 +62383,7 @@ static ma_result ma_decoder_init_flac__internal(const ma_decoder_config* pConfig
 {
     return ma_decoder_init_from_vtable__internal(&g_ma_decoding_backend_vtable_flac, NULL, pConfig, pDecoder);
 }
-
+#ifndef MA_NO_RESOURCE_MANAGER
 static ma_result ma_decoder_init_flac_from_file__internal(const char* pFilePath, const ma_decoder_config* pConfig, ma_decoder* pDecoder)
 {
     return ma_decoder_init_from_file__internal(&g_ma_decoding_backend_vtable_flac, NULL, pFilePath, pConfig, pDecoder);
@@ -62391,7 +62393,7 @@ static ma_result ma_decoder_init_flac_from_file_w__internal(const wchar_t* pFile
 {
     return ma_decoder_init_from_file_w__internal(&g_ma_decoding_backend_vtable_flac, NULL, pFilePath, pConfig, pDecoder);
 }
-
+#endif
 static ma_result ma_decoder_init_flac_from_memory__internal(const void* pData, size_t dataSize, const ma_decoder_config* pConfig, ma_decoder* pDecoder)
 {
     return ma_decoder_init_from_memory__internal(&g_ma_decoding_backend_vtable_flac, NULL, pData, dataSize, pConfig, pDecoder);
@@ -63061,7 +63063,7 @@ static ma_result ma_decoder_init_mp3__internal(const ma_decoder_config* pConfig,
 {
     return ma_decoder_init_from_vtable__internal(&g_ma_decoding_backend_vtable_mp3, NULL, pConfig, pDecoder);
 }
-
+#ifndef MA_NO_RESOURCE_MANAGER
 static ma_result ma_decoder_init_mp3_from_file__internal(const char* pFilePath, const ma_decoder_config* pConfig, ma_decoder* pDecoder)
 {
     return ma_decoder_init_from_file__internal(&g_ma_decoding_backend_vtable_mp3, NULL, pFilePath, pConfig, pDecoder);
@@ -63071,7 +63073,7 @@ static ma_result ma_decoder_init_mp3_from_file_w__internal(const wchar_t* pFileP
 {
     return ma_decoder_init_from_file_w__internal(&g_ma_decoding_backend_vtable_mp3, NULL, pFilePath, pConfig, pDecoder);
 }
-
+#endif
 static ma_result ma_decoder_init_mp3_from_memory__internal(const void* pData, size_t dataSize, const ma_decoder_config* pConfig, ma_decoder* pDecoder)
 {
     return ma_decoder_init_from_memory__internal(&g_ma_decoding_backend_vtable_mp3, NULL, pData, dataSize, pConfig, pDecoder);
