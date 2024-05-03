@@ -9785,7 +9785,7 @@ MA_API ma_result ma_mix_pcm_frames_f32(float* pDst, const float* pSrc, ma_uint64
 
 
 
-
+#ifndef MA_NO_RESOURCE_MANAGER
 /************************************************************************************************************************************************************
 
 VFS
@@ -9846,6 +9846,7 @@ typedef struct
 
 MA_API ma_result ma_default_vfs_init(ma_default_vfs* pVFS, const ma_allocation_callbacks* pAllocationCallbacks);
 
+#endif
 
 
 typedef ma_result (* ma_read_proc)(void* pUserData, void* pBufferOut, size_t bytesToRead, size_t* pBytesRead);
@@ -58836,7 +58837,7 @@ MA_API ma_result ma_paged_audio_buffer_get_length_in_pcm_frames(ma_paged_audio_b
 }
 
 
-
+#ifndef MA_NO_RESOURCE_MANAGER
 /**************************************************************************************************************************************************************
 
 VFS
@@ -59807,7 +59808,7 @@ MA_API ma_result ma_vfs_open_and_read_file_w(ma_vfs* pVFS, const wchar_t* pFileP
 {
     return ma_vfs_open_and_read_file_ex(pVFS, NULL, pFilePath, ppData, pSize, pAllocationCallbacks);
 }
-
+#endif
 
 
 /**************************************************************************************************************************************************************
