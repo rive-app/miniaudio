@@ -9940,11 +9940,13 @@ struct ma_decoder
     ma_allocation_callbacks allocationCallbacks;
     union
     {
+#ifndef MA_NO_RESOURCE_MANAGER
         struct
         {
             ma_vfs* pVFS;
             ma_vfs_file file;
         } vfs;
+#endif
         struct
         {
             const ma_uint8* pData;
