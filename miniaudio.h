@@ -65122,12 +65122,12 @@ MA_API ma_result ma_decoder_uninit(ma_decoder* pDecoder)
             pDecoder->pBackendVTable->onUninit(pDecoder->pBackendUserData, pDecoder->pBackend, &pDecoder->allocationCallbacks);
         }
     }
-
+#ifndef MA_NO_RESOURCE_MANAGER
     if (pDecoder->onRead == ma_decoder__on_read_vfs) {
         ma_vfs_or_default_close(pDecoder->data.vfs.pVFS, pDecoder->data.vfs.file);
         pDecoder->data.vfs.file = NULL;
     }
-
+#endif
     ma_data_converter_uninit(&pDecoder->converter, &pDecoder->allocationCallbacks);
     ma_data_source_uninit(&pDecoder->ds);
 
