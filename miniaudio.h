@@ -64360,7 +64360,9 @@ MA_API ma_result ma_decoder_init_memory(const void* pData, size_t dataSize, cons
     defined(MA_HAS_FLAC)   || \
     defined(MA_HAS_VORBIS) || \
     defined(MA_HAS_OPUS)
+#ifndef MA_NO_RESOURCE_MANAGER
 #define MA_HAS_PATH_API
+#endif
 #endif
 
 #if defined(MA_HAS_PATH_API)
