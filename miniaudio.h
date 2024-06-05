@@ -3749,7 +3749,7 @@ extern "C" {
 
 #include <stddef.h> /* For size_t. */
 
-putchar('testing testing 123\n');
+// putchar('testing testing 123\n');
 
 /* Sized types. */
 #if defined(MA_USE_STDINT)
