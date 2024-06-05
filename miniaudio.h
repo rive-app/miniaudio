@@ -3749,7 +3749,7 @@ extern "C" {
 
 #include <stddef.h> /* For size_t. */
 
-// putchar('testing testing 123\n');
+// printf('testing testing 123\n');
 
 /* Sized types. */
 #if defined(MA_USE_STDINT)
@@ -75059,7 +75059,7 @@ static void ma_engine_data_callback_internal(ma_device* pDevice, void* pFramesOu
 
 MA_API ma_result ma_engine_init(const ma_engine_config* pConfig, ma_engine* pEngine)
 {
-    putchar('ma_engine_init\n');
+    printf('ma_engine_init\n');
     ma_result result;
     ma_node_graph_config nodeGraphConfig;
     ma_engine_config engineConfig;
@@ -75093,12 +75093,12 @@ MA_API ma_result ma_engine_init(const ma_engine_config* pConfig, ma_engine* pEng
 
     #if !defined(MA_NO_DEVICE_IO)
     {
-        putchar('pEngine->pDevice\n');
+        printf('pEngine->pDevice\n');
         pEngine->pDevice = engineConfig.pDevice;
 
         /* If we don't have a device, we need one. */
         if (pEngine->pDevice == NULL && engineConfig.noDevice == MA_FALSE) {
-            putchar('pEngine->pDevice==NULL\n');
+            printf('pEngine->pDevice==NULL\n');
             ma_device_config deviceConfig;
 
             pEngine->pDevice = (ma_device*)ma_malloc(sizeof(*pEngine->pDevice), &pEngine->allocationCallbacks);
@@ -75120,7 +75120,7 @@ MA_API ma_result ma_engine_init(const ma_engine_config* pConfig, ma_engine* pEng
             deviceConfig.noClip                    = MA_TRUE;    /* The engine will do clipping itself. */
 
             if (engineConfig.pContext == NULL) {
-                putchar('engineConfig.pContext==NULL\n');
+                printf('engineConfig.pContext==NULL\n');
                 ma_context_config contextConfig = ma_context_config_init();
                 contextConfig.allocationCallbacks = pEngine->allocationCallbacks;
                 contextConfig.pLog = engineConfig.pLog;
@@ -75133,10 +75133,10 @@ MA_API ma_result ma_engine_init(const ma_engine_config* pConfig, ma_engine* pEng
                     }
                 }
                 #endif
-                putchar('ma_device_init_ex\n');
+                printf('ma_device_init_ex\n');
                 result = ma_device_init_ex(NULL, 0, &contextConfig, &deviceConfig, pEngine->pDevice);
             } else {
-                putchar('ma_device_init\n');
+                printf('ma_device_init\n');
                 result = ma_device_init(engineConfig.pContext, &deviceConfig, pEngine->pDevice);
             }
 
