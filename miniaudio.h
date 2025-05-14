@@ -40618,7 +40618,7 @@ static ma_result ma_device_init__webaudio(ma_device* pDevice, const ma_device_co
             var pIntermediaryBuffer = $4;
             var pDevice    = $5;
 
-            if (typeof(window.miniaudio) === 'undefined') {
+            if (typeof(window['miniaudio']) === 'undefined') {
                 return -1;  /* Context not initialized. */
             }
 
@@ -40786,14 +40786,14 @@ static ma_result ma_context_uninit__webaudio(ma_context* pContext)
 
     /* Remove the global miniaudio object from window if there are no more references to it. */
     EM_ASM({
-        if (typeof(window.miniaudio) !== 'undefined') {
+        if (typeof(window['miniaudio']) !== 'undefined') {
             miniaudio.unlock_event_types.map(function(event_type) {
                 document.removeEventListener(event_type, miniaudio.unlock, true);
             });
 
             window['miniaudio'].referenceCount -= 1;
             if (window['miniaudio'].referenceCount === 0) {
-                delete window.miniaudio;
+                delete window['miniaudio'];
             }
         }
     });
@@ -40815,8 +40815,8 @@ static ma_result ma_context_init__webaudio(ma_context* pContext, const ma_contex
             return 0;   /* Web Audio not supported. */
         }
 
-        if (typeof(window.miniaudio) === 'undefined') {
-            window.miniaudio = {
+        if (typeof(window['miniaudio']) === 'undefined') {
+            window['miniaudio'] = {
                 referenceCount: 0
             };
 
@@ -40832,7 +40832,7 @@ static ma_result ma_context_init__webaudio(ma_context* pContext, const ma_contex
             window['miniaudio'].device_state.started = $4;
 
             /* Device cache for mapping devices to indexes for JavaScript/C interop. */
-            let miniaudio = window.miniaudio;
+            let miniaudio = window['miniaudio'];
             miniaudio.devices = [];
 
             miniaudio.track_device = function(device) {
