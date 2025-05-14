@@ -40150,7 +40150,7 @@ static ma_result ma_device_uninit__webaudio(ma_device* pDevice)
     #if defined(MA_USE_AUDIO_WORKLETS)
     {
         EM_ASM({
-            var device = window['miniaudio'].get_device_by_index($0);
+            var device = window.miniaudio.get_device_by_index($0);
 
             if (device.streamNode !== undefined) {
                 device.streamNode.disconnect();
@@ -40167,7 +40167,7 @@ static ma_result ma_device_uninit__webaudio(ma_device* pDevice)
     #else
     {
         EM_ASM({
-            var device = window['miniaudio'].get_device_by_index($0);
+            var device = window.miniaudio.get_device_by_index($0);
 
             /* Make sure all nodes are disconnected and marked for collection. */
             if (device.scriptNode !== undefined) {
@@ -40194,7 +40194,7 @@ static ma_result ma_device_uninit__webaudio(ma_device* pDevice)
 
     /* Clean up the device on the JS side. */
     EM_ASM({
-        window['miniaudio'].untrack_device_by_index($0);
+        window.miniaudio.untrack_device_by_index($0);
     }, pDevice->webaudio.deviceIndex);
 
     ma_free(pDevice->webaudio.pIntermediaryBuffer, &pDevice->pContext->allocationCallbacks);
@@ -40563,7 +40563,7 @@ static ma_result ma_device_init__webaudio(ma_device* pDevice, const ma_device_co
 
         /* We need to add an entry to the miniaudio.devices list on the JS side so we can do some JS/C interop. */
         pDevice->webaudio.deviceIndex = EM_ASM_INT({
-            return window['miniaudio'].track_device({
+            return window.miniaudio.track_device({
                 webaudio: emscriptenGetAudioObject($0),
                 state:    1, /* 1 = ma_device_state_stopped */
                 pDevice: $1
@@ -40618,7 +40618,7 @@ static ma_result ma_device_init__webaudio(ma_device* pDevice, const ma_device_co
             var pIntermediaryBuffer = $4;
             var pDevice    = $5;
 
-            if (typeof(window['miniaudio']) === 'undefined') {
+            if (typeof(window.miniaudio) === 'undefined') {
                 return -1;  /* Context not initialized. */
             }
 
@@ -40626,13 +40626,13 @@ static ma_result ma_device_init__webaudio(ma_device* pDevice, const ma_device_co
 
             /* First thing we need is an AudioContext. */
             var audioContextOptions = {};
-            if (deviceType == window['miniaudio'].device_type.playback && sampleRate != 0) {
+            if (deviceType == window.miniaudio.device_type.playback && sampleRate != 0) {
                 audioContextOptions.sampleRate = sampleRate;
             }
 
             device.webaudio = new (window.AudioContext || window.webkitAudioContext)(audioContextOptions);
             device.webaudio.suspend();  /* The AudioContext must be created in a suspended state. */
-            device.state = window['miniaudio'].device_state.stopped;
+            device.state = window.miniaudio.device_state.stopped;
 
             /*
             We need to create a ScriptProcessorNode. The channel situation is the same as the AudioWorklet path in that we
@@ -40640,7 +40640,7 @@ static ma_result ma_device_init__webaudio(ma_device* pDevice, const ma_device_co
             */
             var channelCountIn  = 0;
             var channelCountOut = channels;
-            if (deviceType != window['miniaudio'].device_type.playback) {
+            if (deviceType != window.miniaudio.device_type.playback) {
                 channelCountIn  = channels;
             }
 
@@ -40653,7 +40653,7 @@ static ma_result ma_device_init__webaudio(ma_device* pDevice, const ma_device_co
                 }
 
                 /* Do the capture side first. */
-                if (deviceType == window['miniaudio'].device_type.capture || deviceType == window['miniaudio'].device_type.duplex) {
+                if (deviceType == window.miniaudio.device_type.capture || deviceType == window.miniaudio.device_type.duplex) {
                     /* The data must be interleaved before being processed miniaudio. */
                     for (var iChannel = 0; iChannel < channels; iChannel += 1) {
                         var inputBuffer = e.inputBuffer.getChannelData(iChannel);
@@ -40667,7 +40667,7 @@ static ma_result ma_device_init__webaudio(ma_device* pDevice, const ma_device_co
                     _ma_device_process_pcm_frames_capture__webaudio(pDevice, bufferSize, pIntermediaryBuffer);
                 }
 
-                if (deviceType == window['miniaudio'].device_type.playback || deviceType == window['miniaudio'].device_type.duplex) {
+                if (deviceType == window.miniaudio.device_type.playback || deviceType == window.miniaudio.device_type.duplex) {
                     _ma_device_process_pcm_frames_playback__webaudio(pDevice, bufferSize, pIntermediaryBuffer);
 
                     for (var iChannel = 0; iChannel < e.outputBuffer.numberOfChannels; ++iChannel) {
@@ -40687,7 +40687,7 @@ static ma_result ma_device_init__webaudio(ma_device* pDevice, const ma_device_co
             };
 
             /* Now we need to connect our node to the graph. */
-            if (deviceType == window['miniaudio'].device_type.capture || deviceType == window['miniaudio'].device_type.duplex) {
+            if (deviceType == window.miniaudio.device_type.capture || deviceType == window.miniaudio.device_type.duplex) {
                 navigator.mediaDevices.getUserMedia({audio:true, video:false})
                     .then(function(stream) {
                         device.streamNode = device.webaudio.createMediaStreamSource(stream);
@@ -40699,13 +40699,13 @@ static ma_result ma_device_init__webaudio(ma_device* pDevice, const ma_device_co
                     });
             }
 
-            if (deviceType == window['miniaudio'].device_type.playback) {
+            if (deviceType == window.miniaudio.device_type.playback) {
                 device.scriptNode.connect(device.webaudio.destination);
             }
 
             device.pDevice = pDevice;
 
-            return window['miniaudio'].track_device(device);
+            return window.miniaudio.track_device(device);
         }, pConfig->deviceType, channels, sampleRate, periodSizeInFrames, pDevice->webaudio.pIntermediaryBuffer, pDevice);
 
         if (deviceIndex < 0) {
@@ -40715,7 +40715,7 @@ static ma_result ma_device_init__webaudio(ma_device* pDevice, const ma_device_co
         pDevice->webaudio.deviceIndex = deviceIndex;
 
         /* Grab the sample rate from the audio context directly. */
-        sampleRate = (ma_uint32)EM_ASM_INT({ return window['miniaudio'].get_device_by_index($0).webaudio.sampleRate; }, deviceIndex);
+        sampleRate = (ma_uint32)EM_ASM_INT({ return window.miniaudio.get_device_by_index($0).webaudio.sampleRate; }, deviceIndex);
 
         if (pDescriptorCapture != NULL) {
             pDescriptorCapture->format              = ma_format_f32;
@@ -40745,9 +40745,9 @@ static ma_result ma_device_start__webaudio(ma_device* pDevice)
     MA_ASSERT(pDevice != NULL);
 
     EM_ASM({
-        var device = window['miniaudio'].get_device_by_index($0);
+        var device = window.miniaudio.get_device_by_index($0);
         device.webaudio.resume();
-        device.state = window['miniaudio'].device_state.started;
+        device.state = window.miniaudio.device_state.started;
     }, pDevice->webaudio.deviceIndex);
 
     return MA_SUCCESS;
@@ -40767,9 +40767,9 @@ static ma_result ma_device_stop__webaudio(ma_device* pDevice)
     do any kind of explicit draining.
     */
     EM_ASM({
-        var device = window['miniaudio'].get_device_by_index($0);
+        var device = window.miniaudio.get_device_by_index($0);
         device.webaudio.suspend();
-        device.state = window['miniaudio'].device_state.stopped;
+        device.state = window.miniaudio.device_state.stopped;
     }, pDevice->webaudio.deviceIndex);
 
     ma_device__on_notification_stopped(pDevice);
@@ -40786,14 +40786,14 @@ static ma_result ma_context_uninit__webaudio(ma_context* pContext)
 
     /* Remove the global miniaudio object from window if there are no more references to it. */
     EM_ASM({
-        if (typeof(window['miniaudio']) !== 'undefined') {
-            miniaudio.unlock_event_types.map(function(event_type) {
-                document.removeEventListener(event_type, miniaudio.unlock, true);
+        if (typeof(window.miniaudio) !== 'undefined') {
+            window.miniaudio.unlock_event_types.map(function(event_type) {
+                document.removeEventListener(event_type, window.miniaudio.unlock, true);
             });
 
-            window['miniaudio'].referenceCount -= 1;
-            if (window['miniaudio'].referenceCount === 0) {
-                delete window['miniaudio'];
+            window.miniaudio.referenceCount -= 1;
+            if (window.miniaudio.referenceCount === 0) {
+                delete window.miniaudio;
             }
         }
     });
@@ -40815,24 +40815,24 @@ static ma_result ma_context_init__webaudio(ma_context* pContext, const ma_contex
             return 0;   /* Web Audio not supported. */
         }
 
-        if (typeof(window['miniaudio']) === 'undefined') {
-            window['miniaudio'] = {
+        if (typeof(window.miniaudio) === 'undefined') {
+            window.miniaudio = {
                 referenceCount: 0
             };
 
             /* Device types. */
-            window['miniaudio'].device_type = {};
-            window['miniaudio'].device_type.playback = $0;
-            window['miniaudio'].device_type.capture  = $1;
-            window['miniaudio'].device_type.duplex   = $2;
+            window.miniaudio.device_type = {};
+            window.miniaudio.device_type.playback = $0;
+            window.miniaudio.device_type.capture  = $1;
+            window.miniaudio.device_type.duplex   = $2;
 
             /* Device states. */
-            window['miniaudio'].device_state = {};
-            window['miniaudio'].device_state.stopped = $3;
-            window['miniaudio'].device_state.started = $4;
+            window.miniaudio.device_state = {};
+            window.miniaudio.device_state.stopped = $3;
+            window.miniaudio.device_state.started = $4;
 
             /* Device cache for mapping devices to indexes for JavaScript/C interop. */
-            let miniaudio = window['miniaudio'];
+            let miniaudio = window.miniaudio;
             miniaudio.devices = [];
 
             miniaudio.track_device = function(device) {
@@ -40903,7 +40903,7 @@ static ma_result ma_context_init__webaudio(ma_context* pContext, const ma_contex
             });
         }
 
-        window['miniaudio'].referenceCount += 1;
+        window.miniaudio.referenceCount += 1;
 
         return 1;
     }, ma_device_type_playback, ma_device_type_capture, ma_device_type_duplex, ma_device_state_stopped, ma_device_state_started);
