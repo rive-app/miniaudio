@@ -32027,6 +32027,8 @@ References
 
 #if defined(MA_APPLE_DESKTOP)
 #include <CoreAudio/CoreAudio.h>
+#elif defined(TARGET_OS_MACCATALYST)
+#include <AVFoundation/AVFoundation.h>
 #else
 #include <AVFoundation/AVFoundation.h>
 #endif
