@@ -63472,12 +63472,13 @@ MA_API ma_node_state ma_node_get_state_by_time_range(const ma_node* pNode, ma_ui
     its start time not having been reached yet. Also, the stop time may have also been reached in
     which case it'll be considered stopped.
     */
-    if (ma_node_get_state_time(pNode, ma_node_state_stopped) < globalTimeBeg) {
-        return ma_node_state_stopped;   /* End time is before the start of the range. */
+    if (ma_node_get_state_time(pNode, ma_node_state_started) > globalTimeBeg &&
+        ma_node_get_state_time(pNode, ma_node_state_started) >= globalTimeEnd) {
+        return ma_node_state_stopped;   /* Start time is not reached within the range. */
     }
 
-    if (ma_node_get_state_time(pNode, ma_node_state_started) > globalTimeEnd) {
-        return ma_node_state_stopped;   /* Start time is after the end of the range. */
+    if (ma_node_get_state_time(pNode, ma_node_state_stopped) <= globalTimeBeg) {
+        return ma_node_state_stopped;   /* Stop time was reached before the range. */
     }
 
     /* Getting here means the node is marked as started and is within its start/stop times. */
