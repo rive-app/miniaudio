@@ -73302,12 +73302,13 @@ MA_API ma_node_state ma_node_get_state_by_time_range(const ma_node* pNode, ma_ui
     its start time not having been reached yet. Also, the stop time may have also been reached in
     which case it'll be considered stopped.
     */
-    if (ma_node_get_state_time(pNode, ma_node_state_started) > globalTimeBeg) {
-        return ma_node_state_stopped;   /* Start time has not yet been reached. */
+    if (ma_node_get_state_time(pNode, ma_node_state_started) > globalTimeBeg &&
+        ma_node_get_state_time(pNode, ma_node_state_started) >= globalTimeEnd) {
+        return ma_node_state_stopped;   /* Start time is not reached within the range. */
     }
 
-    if (ma_node_get_state_time(pNode, ma_node_state_stopped) <= globalTimeEnd) {
-        return ma_node_state_stopped;   /* Stop time has been reached. */
+    if (ma_node_get_state_time(pNode, ma_node_state_stopped) <= globalTimeBeg) {
+        return ma_node_state_stopped;   /* Stop time was reached before the range. */
     }
 
     /* Getting here means the node is marked as started and is within its start/stop times. */
@@ -73407,7 +73408,7 @@ static ma_result ma_node_read_pcm_frames(ma_node* pNode, ma_uint32 outputBusInde
     therefore need to offset it by a number of frames to accommodate. The same thing applies for
     the stop time.
     */
-    timeOffsetBeg = (globalTimeBeg < startTime) ? (ma_uint32)(globalTimeEnd - startTime) : 0;
+    timeOffsetBeg = (globalTimeBeg < startTime) ? (ma_uint32)(startTime - globalTimeBeg) : 0;
     timeOffsetEnd = (globalTimeEnd > stopTime)  ? (ma_uint32)(globalTimeEnd - stopTime)  : 0;
 
     /* Trim based on the start offset. We need to silence the start of the buffer. */
