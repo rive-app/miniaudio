@@ -61763,6 +61763,10 @@ MA_API ma_node_state ma_node_get_state_by_time_range(const ma_node* pNode, ma_ui
     its start time not having been reached yet. Also, the stop time may have also been reached in
     which case it'll be considered stopped.
     */
+    if (ma_node_get_state_time(pNode, ma_node_state_stopped) <= ma_node_get_state_time(pNode, ma_node_state_started)) {
+        return ma_node_state_stopped;   /* Stops before it starts, so it never plays. */
+    }
+
     if (ma_node_get_state_time(pNode, ma_node_state_started) > globalTimeBeg &&
         ma_node_get_state_time(pNode, ma_node_state_started) >= globalTimeEnd) {
         return ma_node_state_stopped;   /* Start time is not reached within the range. */
@@ -61874,6 +61878,10 @@ static ma_result ma_node_read_pcm_frames(ma_node* pNode, ma_uint32 outputBusInde
 
     /* Trim based on the start offset. We need to silence the start of the buffer. */
     if (timeOffsetBeg > 0) {
+        if (timeOffsetBeg > frameCount) {
+            timeOffsetBeg = frameCount;
+        }
+
         ma_silence_pcm_frames(pFramesOut, timeOffsetBeg, ma_format_f32, ma_node_get_output_channels(pNode, outputBusIndex));
         pFramesOut += timeOffsetBeg * ma_node_get_output_channels(pNode, outputBusIndex);
         frameCount -= timeOffsetBeg;
@@ -61881,6 +61889,10 @@ static ma_result ma_node_read_pcm_frames(ma_node* pNode, ma_uint32 outputBusInde
 
     /* Trim based on the end offset. We don't need to silence the tail section because we'll just have a reduced value written to pFramesRead. */
     if (timeOffsetEnd > 0) {
+        if (timeOffsetEnd > frameCount) {
+            timeOffsetEnd = frameCount;
+        }
+
         frameCount -= timeOffsetEnd;
     }
 
