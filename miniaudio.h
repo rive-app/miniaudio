@@ -62686,7 +62686,7 @@ extern "C" {
 #define MA_DR_MP3_XSTRINGIFY(x)     MA_DR_MP3_STRINGIFY(x)
 #define MA_DR_MP3_VERSION_MAJOR     0
 #define MA_DR_MP3_VERSION_MINOR     7
-#define MA_DR_MP3_VERSION_REVISION  3
+#define MA_DR_MP3_VERSION_REVISION  4
 #define MA_DR_MP3_VERSION_STRING    MA_DR_MP3_XSTRINGIFY(MA_DR_MP3_VERSION_MAJOR) "." MA_DR_MP3_XSTRINGIFY(MA_DR_MP3_VERSION_MINOR) "." MA_DR_MP3_XSTRINGIFY(MA_DR_MP3_VERSION_REVISION)
 #include <stddef.h>
 #define MA_DR_MP3_MAX_PCM_FRAMES_PER_MP3_FRAME  1152
@@ -62698,7 +62698,11 @@ MA_API const char* ma_dr_mp3_version_string(void);
 #define MA_DR_MP3_MAX_L3_FRAME_PAYLOAD_BYTES  MA_DR_MP3_MAX_FREE_FORMAT_FRAME_SIZE
 typedef struct
 {
-    int frame_bytes, channels, sample_rate, layer, bitrate_kbps;
+    int frame_bytes;
+    int channels;
+    int sample_rate;
+    int layer;
+    int bitrate_kbps;
 } ma_dr_mp3dec_frame_info;
 typedef struct
 {
@@ -62791,6 +62795,7 @@ typedef struct
     ma_uint32 seekPointCount;
     ma_uint32 delayInPCMFrames;
     ma_uint32 paddingInPCMFrames;
+    ma_uint32 mp3FramesSkipped;
     ma_uint64 totalPCMFrameCount;
     ma_bool32 isVBR;
     ma_bool32 isCBR;
@@ -92802,7 +92807,10 @@ MA_API const char* ma_dr_mp3_version_string(void)
 #define MA_DR_MP3_MIN(a, b)           ((a) > (b) ? (b) : (a))
 #define MA_DR_MP3_MAX(a, b)           ((a) < (b) ? (b) : (a))
 #if !defined(MA_DR_MP3_NO_SIMD)
-#if !defined(MA_DR_MP3_ONLY_SIMD) && (defined(_M_X64) || defined(__x86_64__) || defined(__aarch64__) || defined(_M_ARM64) || defined(_M_ARM64EC))
+#if !defined(MA_DR_MP3_ONLY_SIMD) && ((defined(_MSC_VER) && _MSC_VER >= 1400) && defined(_M_X64)) || ((defined(__i386) || defined(_M_IX86) || defined(__i386__) || defined(__x86_64__)) && ((defined(_M_IX86_FP) && _M_IX86_FP == 2) || defined(__SSE2__)))
+#define MA_DR_MP3_ONLY_SIMD
+#endif
+#if !defined(MA_DR_MP3_ONLY_SIMD) && (defined(__ARM_NEON) || defined(__aarch64__) || defined(_M_ARM64) || defined(_M_ARM64EC))
 #define MA_DR_MP3_ONLY_SIMD
 #endif
 #if ((defined(_MSC_VER) && _MSC_VER >= 1400) && defined(_M_X64)) || ((defined(__i386) || defined(_M_IX86) || defined(__i386__) || defined(__x86_64__)) && ((defined(_M_IX86_FP) && _M_IX86_FP == 2) || defined(__SSE2__)))
@@ -94319,6 +94327,7 @@ MA_API int ma_dr_mp3dec_decode_frame(ma_dr_mp3dec *dec, const ma_uint8 *mp3, int
     int i = 0, igr, frame_size = 0, success = 1;
     const ma_uint8 *hdr;
     ma_dr_mp3_bs bs_frame[1];
+    info->layer = 0;
     if (mp3_bytes > 4 && dec->header[0] == 0xff && ma_dr_mp3_hdr_compare(dec->header, mp3))
     {
         frame_size = ma_dr_mp3_hdr_frame_bytes(mp3, dec->free_format_bytes) + ma_dr_mp3_hdr_padding(mp3);
@@ -94455,7 +94464,7 @@ MA_API void ma_dr_mp3dec_f32_to_s16(const float *in, ma_int16 *out, size_t num_s
     }
 }
 #ifndef MA_DR_MP3_SEEK_LEADING_MP3_FRAMES
-#define MA_DR_MP3_SEEK_LEADING_MP3_FRAMES   2
+#define MA_DR_MP3_SEEK_LEADING_MP3_FRAMES   16
 #endif
 #define MA_DR_MP3_MIN_DATA_CHUNK_SIZE   16384
 #ifndef MA_DR_MP3_DATA_CHUNK_SIZE
@@ -94720,6 +94729,8 @@ static ma_uint32 ma_dr_mp3_decode_next_frame_ex__callbacks(ma_dr_mp3* pMP3, ma_d
                 return 0;
             }
             pMP3->dataSize += bytesRead;
+        } else if (info.layer != 0) {
+            pMP3->mp3FramesSkipped += 1;
         }
     };
     return pcmFramesRead;
@@ -94749,6 +94760,9 @@ static ma_uint32 ma_dr_mp3_decode_next_frame_ex__memory(ma_dr_mp3* pMP3, ma_dr_m
             }
             break;
         } else if (info.frame_bytes > 0) {
+            if (info.layer != 0) {
+                pMP3->mp3FramesSkipped += 1;
+            }
             pMP3->memory.currentReadPos += (size_t)info.frame_bytes;
             pMP3->streamCursor          += (size_t)info.frame_bytes;
         } else {
@@ -94761,6 +94775,7 @@ static ma_uint32 ma_dr_mp3_decode_next_frame_ex__memory(ma_dr_mp3* pMP3, ma_dr_m
 }
 static ma_uint32 ma_dr_mp3_decode_next_frame_ex(ma_dr_mp3* pMP3, ma_dr_mp3d_sample_t* pPCMFrames, ma_dr_mp3dec_frame_info* pMP3FrameInfo, const ma_uint8** ppMP3FrameData)
 {
+    pMP3->mp3FramesSkipped = 0;
     if (pMP3->memory.pData != NULL && pMP3->memory.dataSize > 0) {
         return ma_dr_mp3_decode_next_frame_ex__memory(pMP3, pPCMFrames, pMP3FrameInfo, ppMP3FrameData);
     } else {
@@ -94933,6 +94948,14 @@ static ma_bool32 ma_dr_mp3_init_internal(ma_dr_mp3* pMP3, ma_dr_mp3_read_proc on
                         return MA_FALSE;
                     }
                 } else {
+                    pMP3->pData = (ma_uint8*)ma_dr_mp3__malloc_from_callbacks(MA_DR_MP3_DATA_CHUNK_SIZE, &pMP3->allocationCallbacks);
+                    if (pMP3->pData == NULL) {
+                        return MA_FALSE;
+                    }
+                    pMP3->dataCapacity = MA_DR_MP3_DATA_CHUNK_SIZE;
+                    MA_DR_MP3_COPY_MEMORY(pMP3->pData, header, sizeof(header));
+                    pMP3->dataSize = sizeof(header);
+                    pMP3->streamCursor = sizeof(header);
                 }
             }
         } else {
@@ -94957,8 +94980,19 @@ static ma_bool32 ma_dr_mp3_init_internal(ma_dr_mp3* pMP3, ma_dr_mp3_read_proc on
                 ma_bool32 isInfo = MA_FALSE;
                 const ma_uint8* pTagData;
                 const ma_uint8* pTagDataBeg;
+                const void* pDataBufferEnd = NULL;
+                size_t frameBytes;
                 pTagDataBeg = pFirstFrameData + MA_DR_MP3_HDR_SIZE + (bs.pos/8);
                 pTagData    = pTagDataBeg;
+                if (pMP3->memory.pData != NULL && pMP3->memory.dataSize > 0) {
+                    pDataBufferEnd = pMP3->memory.pData + pMP3->memory.dataSize;
+                } else {
+                    pDataBufferEnd = pMP3->pData + pMP3->dataCapacity;
+                }
+                frameBytes = MA_DR_MP3_MIN((size_t)firstFrameInfo.frame_bytes, (size_t)((ma_uint8*)pDataBufferEnd - pFirstFrameData));
+                if (frameBytes < (size_t)(pTagData - pFirstFrameData) + 8) {
+                    goto done_xing_info;
+                }
                 isXing = (pTagData[0] == 'X' && pTagData[1] == 'i' && pTagData[2] == 'n' && pTagData[3] == 'g');
                 isInfo = (pTagData[0] == 'I' && pTagData[1] == 'n' && pTagData[2] == 'f' && pTagData[3] == 'o');
                 if (isXing || isInfo) {
@@ -94966,33 +95000,49 @@ static ma_bool32 ma_dr_mp3_init_internal(ma_dr_mp3* pMP3, ma_dr_mp3_read_proc on
                     ma_uint32 flags = pTagData[7];
                     pTagData += 8;
                     if (flags & 0x01) {
+                        if (frameBytes < (size_t)(pTagData - pFirstFrameData) + 4) {
+                            goto done_xing_info;
+                        }
                         detectedMP3FrameCount = (ma_uint32)pTagData[0] << 24 | (ma_uint32)pTagData[1] << 16 | (ma_uint32)pTagData[2] << 8 | (ma_uint32)pTagData[3];
                         pTagData += 4;
                     }
                     if (flags & 0x02) {
+                        if (frameBytes < (size_t)(pTagData - pFirstFrameData) + 4) {
+                            goto done_xing_info;
+                        }
                         bytes  = (ma_uint32)pTagData[0] << 24 | (ma_uint32)pTagData[1] << 16 | (ma_uint32)pTagData[2] << 8 | (ma_uint32)pTagData[3];
                         (void)bytes;
                         pTagData += 4;
                     }
                     if (flags & 0x04) {
+                        if (frameBytes < (size_t)(pTagData - pFirstFrameData) + 100) {
+                            goto done_xing_info;
+                        }
                         pTagData += 100;
                     }
                     if (flags & 0x08) {
+                        if (frameBytes < (size_t)(pTagData - pFirstFrameData) + 4) {
+                            goto done_xing_info;
+                        }
                         pTagData += 4;
                     }
+                    if (frameBytes < (size_t)(pTagData - pFirstFrameData) + 1) {
+                        goto done_xing_info;
+                    }
                     if (pTagData[0]) {
-                        pTagData += 21;
-                        if (pTagData - pFirstFrameData + 14 < firstFrameInfo.frame_bytes) {
-                            int delayInPCMFrames;
-                            int paddingInPCMFrames;
-                            delayInPCMFrames   = (( (ma_uint32)pTagData[0]        << 4) | ((ma_uint32)pTagData[1] >> 4)) + (528 + 1);
-                            paddingInPCMFrames = ((((ma_uint32)pTagData[1] & 0xF) << 8) | ((ma_uint32)pTagData[2]     )) - (528 + 1);
-                            if (paddingInPCMFrames < 0) {
-                                paddingInPCMFrames = 0;
-                            }
-                            pMP3->delayInPCMFrames   = (ma_uint32)delayInPCMFrames;
-                            pMP3->paddingInPCMFrames = (ma_uint32)paddingInPCMFrames;
+                        int delayInPCMFrames;
+                        int paddingInPCMFrames;
+                        if (frameBytes < (size_t)(pTagData - pFirstFrameData) + 36) {
+                            goto done_xing_info;
                         }
+                        pTagData += 21;
+                        delayInPCMFrames   = (( (ma_uint32)pTagData[0]        << 4) | ((ma_uint32)pTagData[1] >> 4)) + (528 + 1);
+                        paddingInPCMFrames = ((((ma_uint32)pTagData[1] & 0xF) << 8) | ((ma_uint32)pTagData[2]     )) - (528 + 1);
+                        if (paddingInPCMFrames < 0) {
+                            paddingInPCMFrames = 0;
+                        }
+                        pMP3->delayInPCMFrames   = (ma_uint32)delayInPCMFrames;
+                        pMP3->paddingInPCMFrames = (ma_uint32)paddingInPCMFrames;
                     }
                     if (isXing) {
                         pMP3->isVBR = MA_TRUE;
@@ -95008,9 +95058,9 @@ static ma_bool32 ma_dr_mp3_init_internal(ma_dr_mp3* pMP3, ma_dr_mp3_read_proc on
                     }
                     pMP3->pcmFramesRemainingInMP3Frame = 0;
                     pMP3->streamStartOffset += (ma_uint32)(firstFrameInfo.frame_bytes);
-                    pMP3->streamCursor = pMP3->streamStartOffset;
                     ma_dr_mp3dec_init(&pMP3->decoder);
                 }
+                done_xing_info:;
             } else {
             }
         }
@@ -95020,7 +95070,7 @@ static ma_bool32 ma_dr_mp3_init_internal(ma_dr_mp3* pMP3, ma_dr_mp3_read_proc on
         return MA_FALSE;
     }
     if (detectedMP3FrameCount != 0xFFFFFFFF) {
-        pMP3->totalPCMFrameCount = detectedMP3FrameCount * firstFramePCMFrameCount;
+        pMP3->totalPCMFrameCount = (ma_uint64)detectedMP3FrameCount * firstFramePCMFrameCount;
     }
     pMP3->channels   = pMP3->mp3FrameChannels;
     pMP3->sampleRate = pMP3->mp3FrameSampleRate;
@@ -95320,7 +95370,7 @@ MA_API ma_uint64 ma_dr_mp3_read_pcm_frames_f32(ma_dr_mp3* pMP3, ma_uint64 frames
     return ma_dr_mp3_read_pcm_frames_raw(pMP3, framesToRead, pBufferOut);
 #else
     {
-        ma_int16 pTempS16[8192];
+        ma_int16 pTempS16[1152*2];
         ma_uint64 totalPCMFramesRead = 0;
         while (totalPCMFramesRead < framesToRead) {
             ma_uint64 framesJustRead;
@@ -95349,7 +95399,7 @@ MA_API ma_uint64 ma_dr_mp3_read_pcm_frames_s16(ma_dr_mp3* pMP3, ma_uint64 frames
     return ma_dr_mp3_read_pcm_frames_raw(pMP3, framesToRead, pBufferOut);
 #else
     {
-        float pTempF32[4096];
+        float pTempF32[1152*2];
         ma_uint64 totalPCMFramesRead = 0;
         while (totalPCMFramesRead < framesToRead) {
             ma_uint64 framesJustRead;
@@ -95389,6 +95439,13 @@ static ma_bool32 ma_dr_mp3_seek_to_start_of_stream(ma_dr_mp3* pMP3)
     ma_dr_mp3_reset(pMP3);
     return MA_TRUE;
 }
+static ma_uint64 ma_dr_mp3_get_cursor_in_pcm_frames(const ma_dr_mp3* pMP3)
+{
+    if (pMP3->currentPCMFrame > pMP3->delayInPCMFrames) {
+        return pMP3->currentPCMFrame - pMP3->delayInPCMFrames;
+    }
+    return 0;
+}
 static ma_bool32 ma_dr_mp3_seek_forward_by_pcm_frames__brute_force(ma_dr_mp3* pMP3, ma_uint64 frameOffset)
 {
     ma_uint64 framesRead;
@@ -95404,17 +95461,20 @@ static ma_bool32 ma_dr_mp3_seek_forward_by_pcm_frames__brute_force(ma_dr_mp3* pM
 }
 static ma_bool32 ma_dr_mp3_seek_to_pcm_frame__brute_force(ma_dr_mp3* pMP3, ma_uint64 frameIndex)
 {
+    ma_uint64 cursor;
     MA_DR_MP3_ASSERT(pMP3 != NULL);
-    if (frameIndex == pMP3->currentPCMFrame) {
+    cursor = ma_dr_mp3_get_cursor_in_pcm_frames(pMP3);
+    if (frameIndex == cursor) {
         return MA_TRUE;
     }
-    if (frameIndex < pMP3->currentPCMFrame) {
+    if (frameIndex < cursor) {
         if (!ma_dr_mp3_seek_to_start_of_stream(pMP3)) {
             return MA_FALSE;
         }
+        cursor = 0;
     }
-    MA_DR_MP3_ASSERT(frameIndex >= pMP3->currentPCMFrame);
-    return ma_dr_mp3_seek_forward_by_pcm_frames__brute_force(pMP3, (frameIndex - pMP3->currentPCMFrame));
+    MA_DR_MP3_ASSERT(frameIndex >= cursor);
+    return ma_dr_mp3_seek_forward_by_pcm_frames__brute_force(pMP3, (frameIndex - cursor));
 }
 static ma_bool32 ma_dr_mp3_find_closest_seek_point(ma_dr_mp3* pMP3, ma_uint64 frameIndex, ma_uint32* pSeekPointIndex)
 {
@@ -95436,15 +95496,22 @@ static ma_bool32 ma_dr_mp3_seek_to_pcm_frame__seek_table(ma_dr_mp3* pMP3, ma_uin
 {
     ma_dr_mp3_seek_point seekPoint;
     ma_uint32 priorSeekPointIndex;
-    ma_uint16 iMP3Frame;
+    ma_uint32 iMP3Frame;
+    ma_uint32 mp3FramesDecoded;
+    ma_uint64 internalFrameIndex;
     ma_uint64 leftoverFrames;
     MA_DR_MP3_ASSERT(pMP3 != NULL);
     MA_DR_MP3_ASSERT(pMP3->pSeekPoints != NULL);
     MA_DR_MP3_ASSERT(pMP3->seekPointCount > 0);
-    if (ma_dr_mp3_find_closest_seek_point(pMP3, frameIndex, &priorSeekPointIndex)) {
+    if (frameIndex > MA_UINT64_MAX - pMP3->delayInPCMFrames) {
+        internalFrameIndex = MA_UINT64_MAX;
+    } else {
+        internalFrameIndex = frameIndex + pMP3->delayInPCMFrames;
+    }
+    if (ma_dr_mp3_find_closest_seek_point(pMP3, internalFrameIndex, &priorSeekPointIndex)) {
         seekPoint = pMP3->pSeekPoints[priorSeekPointIndex];
     } else {
-        seekPoint.seekPosInBytes     = 0;
+        seekPoint.seekPosInBytes     = pMP3->streamStartOffset;
         seekPoint.pcmFrameIndex      = 0;
         seekPoint.mp3FramesToDiscard = 0;
         seekPoint.pcmFramesToDiscard = 0;
@@ -95453,20 +95520,29 @@ static ma_bool32 ma_dr_mp3_seek_to_pcm_frame__seek_table(ma_dr_mp3* pMP3, ma_uin
         return MA_FALSE;
     }
     ma_dr_mp3_reset(pMP3);
-    for (iMP3Frame = 0; iMP3Frame < seekPoint.mp3FramesToDiscard; ++iMP3Frame) {
-        ma_uint32 pcmFramesRead;
-        ma_dr_mp3d_sample_t* pPCMFrames;
-        pPCMFrames = NULL;
-        if (iMP3Frame == seekPoint.mp3FramesToDiscard-1) {
-            pPCMFrames = (ma_dr_mp3d_sample_t*)pMP3->pcmFrames;
+    iMP3Frame = 0;
+    mp3FramesDecoded = 0;
+    while (iMP3Frame < seekPoint.mp3FramesToDiscard) {
+        if (ma_dr_mp3_decode_next_frame_ex(pMP3, (ma_dr_mp3d_sample_t*)pMP3->pcmFrames, NULL, NULL) == 0) {
+            break;
         }
-        pcmFramesRead = ma_dr_mp3_decode_next_frame_ex(pMP3, pPCMFrames, NULL, NULL);
-        if (pcmFramesRead == 0) {
-            return MA_FALSE;
+        iMP3Frame += 1 + pMP3->mp3FramesSkipped;
+        if (pMP3->mp3FramesSkipped == 0) {
+            mp3FramesDecoded += 1;
+        } else {
+            mp3FramesDecoded = 1;
         }
     }
+    pMP3->pcmFramesConsumedInMP3Frame  = 0;
+    pMP3->pcmFramesRemainingInMP3Frame = 0;
+    if (iMP3Frame != seekPoint.mp3FramesToDiscard || (mp3FramesDecoded < 2 && seekPoint.seekPosInBytes != pMP3->streamStartOffset)) {
+        if (!ma_dr_mp3_seek_to_start_of_stream(pMP3)) {
+            return MA_FALSE;
+        }
+        return ma_dr_mp3_seek_forward_by_pcm_frames__brute_force(pMP3, frameIndex);
+    }
     pMP3->currentPCMFrame = seekPoint.pcmFrameIndex - seekPoint.pcmFramesToDiscard;
-    leftoverFrames = frameIndex - pMP3->currentPCMFrame;
+    leftoverFrames = frameIndex - ma_dr_mp3_get_cursor_in_pcm_frames(pMP3);
     return ma_dr_mp3_seek_forward_by_pcm_frames__brute_force(pMP3, leftoverFrames);
 }
 MA_API ma_bool32 ma_dr_mp3_seek_to_pcm_frame(ma_dr_mp3* pMP3, ma_uint64 frameIndex)
@@ -95494,7 +95570,7 @@ MA_API ma_bool32 ma_dr_mp3_get_mp3_and_pcm_frame_count(ma_dr_mp3* pMP3, ma_uint6
     if (pMP3->onSeek == NULL) {
         return MA_FALSE;
     }
-    currentPCMFrame = pMP3->currentPCMFrame;
+    currentPCMFrame = ma_dr_mp3_get_cursor_in_pcm_frames(pMP3);
     if (!ma_dr_mp3_seek_to_start_of_stream(pMP3)) {
         return MA_FALSE;
     }
@@ -95571,6 +95647,7 @@ typedef struct
 {
     ma_uint64 bytePos;
     ma_uint64 pcmFrameIndex;
+    ma_uint64 mp3FrameIndex;
 } ma_dr_mp3__seeking_mp3_frame_info;
 MA_API ma_bool32 ma_dr_mp3_calculate_seek_points(ma_dr_mp3* pMP3, ma_uint32* pSeekPointCount, ma_dr_mp3_seek_point* pSeekPoints)
 {
@@ -95585,23 +95662,24 @@ MA_API ma_bool32 ma_dr_mp3_calculate_seek_points(ma_dr_mp3* pMP3, ma_uint32* pSe
     if (seekPointCount == 0) {
         return MA_FALSE;
     }
-    currentPCMFrame = pMP3->currentPCMFrame;
+    currentPCMFrame = ma_dr_mp3_get_cursor_in_pcm_frames(pMP3);
     if (!ma_dr_mp3_get_mp3_and_pcm_frame_count(pMP3, &totalMP3FrameCount, &totalPCMFrameCount)) {
         return MA_FALSE;
     }
     if (totalMP3FrameCount < MA_DR_MP3_SEEK_LEADING_MP3_FRAMES+1) {
         seekPointCount = 1;
-        pSeekPoints[0].seekPosInBytes     = 0;
+        pSeekPoints[0].seekPosInBytes     = pMP3->streamStartOffset;
         pSeekPoints[0].pcmFrameIndex      = 0;
         pSeekPoints[0].mp3FramesToDiscard = 0;
         pSeekPoints[0].pcmFramesToDiscard = 0;
     } else {
         ma_uint64 pcmFramesBetweenSeekPoints;
         ma_dr_mp3__seeking_mp3_frame_info mp3FrameInfo[MA_DR_MP3_SEEK_LEADING_MP3_FRAMES+1];
+        ma_uint32 mp3FrameInfoCount = 0;
         ma_uint64 runningPCMFrameCount = 0;
         float runningPCMFrameCountFractionalPart = 0;
+        ma_uint64 runningMP3FrameCount = 0;
         ma_uint64 nextTargetPCMFrame;
-        ma_uint32 iMP3Frame;
         ma_uint32 iSeekPoint;
         if (seekPointCount > totalMP3FrameCount-1) {
             seekPointCount = (ma_uint32)totalMP3FrameCount-1;
@@ -95610,46 +95688,35 @@ MA_API ma_bool32 ma_dr_mp3_calculate_seek_points(ma_dr_mp3* pMP3, ma_uint32* pSe
         if (!ma_dr_mp3_seek_to_start_of_stream(pMP3)) {
             return MA_FALSE;
         }
-        for (iMP3Frame = 0; iMP3Frame < MA_DR_MP3_SEEK_LEADING_MP3_FRAMES+1; ++iMP3Frame) {
-            ma_uint32 pcmFramesInCurrentMP3FrameIn;
-            MA_DR_MP3_ASSERT(pMP3->streamCursor >= pMP3->dataSize);
-            mp3FrameInfo[iMP3Frame].bytePos       = pMP3->streamCursor - pMP3->dataSize;
-            mp3FrameInfo[iMP3Frame].pcmFrameIndex = runningPCMFrameCount;
-            pcmFramesInCurrentMP3FrameIn = ma_dr_mp3_decode_next_frame_ex(pMP3, NULL, NULL, NULL);
-            if (pcmFramesInCurrentMP3FrameIn == 0) {
-                return MA_FALSE;
-            }
-            ma_dr_mp3__accumulate_running_pcm_frame_count(pMP3, pcmFramesInCurrentMP3FrameIn, &runningPCMFrameCount, &runningPCMFrameCountFractionalPart);
-        }
         nextTargetPCMFrame = 0;
         for (iSeekPoint = 0; iSeekPoint < seekPointCount; ++iSeekPoint) {
             nextTargetPCMFrame += pcmFramesBetweenSeekPoints;
-            for (;;) {
-                if (nextTargetPCMFrame < runningPCMFrameCount) {
-                    pSeekPoints[iSeekPoint].seekPosInBytes     = mp3FrameInfo[0].bytePos;
-                    pSeekPoints[iSeekPoint].pcmFrameIndex      = nextTargetPCMFrame;
-                    pSeekPoints[iSeekPoint].mp3FramesToDiscard = MA_DR_MP3_SEEK_LEADING_MP3_FRAMES;
-                    pSeekPoints[iSeekPoint].pcmFramesToDiscard = (ma_uint16)(nextTargetPCMFrame - mp3FrameInfo[MA_DR_MP3_SEEK_LEADING_MP3_FRAMES-1].pcmFrameIndex);
-                    break;
-                } else {
+            while (mp3FrameInfoCount == 0 || nextTargetPCMFrame >= runningPCMFrameCount) {
+                ma_uint32 pcmFramesInCurrentMP3FrameIn;
+                if (mp3FrameInfoCount == MA_DR_MP3_COUNTOF(mp3FrameInfo)) {
                     size_t i;
-                    ma_uint32 pcmFramesInCurrentMP3FrameIn;
                     for (i = 0; i < MA_DR_MP3_COUNTOF(mp3FrameInfo)-1; ++i) {
                         mp3FrameInfo[i] = mp3FrameInfo[i+1];
                     }
-                    mp3FrameInfo[MA_DR_MP3_COUNTOF(mp3FrameInfo)-1].bytePos       = pMP3->streamCursor - pMP3->dataSize;
-                    mp3FrameInfo[MA_DR_MP3_COUNTOF(mp3FrameInfo)-1].pcmFrameIndex = runningPCMFrameCount;
-                    pcmFramesInCurrentMP3FrameIn = ma_dr_mp3_decode_next_frame_ex(pMP3, NULL, NULL, NULL);
-                    if (pcmFramesInCurrentMP3FrameIn == 0) {
-                        pSeekPoints[iSeekPoint].seekPosInBytes     = mp3FrameInfo[0].bytePos;
-                        pSeekPoints[iSeekPoint].pcmFrameIndex      = nextTargetPCMFrame;
-                        pSeekPoints[iSeekPoint].mp3FramesToDiscard = MA_DR_MP3_SEEK_LEADING_MP3_FRAMES;
-                        pSeekPoints[iSeekPoint].pcmFramesToDiscard = (ma_uint16)(nextTargetPCMFrame - mp3FrameInfo[MA_DR_MP3_SEEK_LEADING_MP3_FRAMES-1].pcmFrameIndex);
-                        break;
-                    }
-                    ma_dr_mp3__accumulate_running_pcm_frame_count(pMP3, pcmFramesInCurrentMP3FrameIn, &runningPCMFrameCount, &runningPCMFrameCountFractionalPart);
+                    mp3FrameInfoCount -= 1;
                 }
+                MA_DR_MP3_ASSERT(pMP3->streamCursor >= pMP3->dataSize);
+                mp3FrameInfo[mp3FrameInfoCount].bytePos       = pMP3->streamCursor - pMP3->dataSize;
+                mp3FrameInfo[mp3FrameInfoCount].pcmFrameIndex = runningPCMFrameCount;
+                mp3FrameInfo[mp3FrameInfoCount].mp3FrameIndex = runningMP3FrameCount;
+                pcmFramesInCurrentMP3FrameIn = ma_dr_mp3_decode_next_frame_ex(pMP3, NULL, NULL, NULL);
+                if (pcmFramesInCurrentMP3FrameIn == 0) {
+                    break;
+                }
+                mp3FrameInfoCount    += 1;
+                runningMP3FrameCount += 1 + pMP3->mp3FramesSkipped;
+                ma_dr_mp3__accumulate_running_pcm_frame_count(pMP3, pcmFramesInCurrentMP3FrameIn, &runningPCMFrameCount, &runningPCMFrameCountFractionalPart);
             }
+            MA_DR_MP3_ASSERT(mp3FrameInfoCount > 0);
+            pSeekPoints[iSeekPoint].seekPosInBytes     = mp3FrameInfo[0].bytePos;
+            pSeekPoints[iSeekPoint].pcmFrameIndex      = nextTargetPCMFrame;
+            pSeekPoints[iSeekPoint].mp3FramesToDiscard = (ma_uint16)(mp3FrameInfo[mp3FrameInfoCount-1].mp3FrameIndex - mp3FrameInfo[0].mp3FrameIndex);
+            pSeekPoints[iSeekPoint].pcmFramesToDiscard = (ma_uint16)(nextTargetPCMFrame - mp3FrameInfo[mp3FrameInfoCount-1].pcmFrameIndex);
         }
         if (!ma_dr_mp3_seek_to_start_of_stream(pMP3)) {
             return MA_FALSE;
@@ -95680,7 +95747,7 @@ static float* ma_dr_mp3__full_read_and_close_f32(ma_dr_mp3* pMP3, ma_dr_mp3_conf
     ma_uint64 totalFramesRead = 0;
     ma_uint64 framesCapacity = 0;
     float* pFrames = NULL;
-    float temp[4096];
+    float temp[1152*2];
     MA_DR_MP3_ASSERT(pMP3 != NULL);
     for (;;) {
         ma_uint64 framesToReadRightNow = MA_DR_MP3_COUNTOF(temp) / pMP3->channels;
@@ -95733,7 +95800,7 @@ static ma_int16* ma_dr_mp3__full_read_and_close_s16(ma_dr_mp3* pMP3, ma_dr_mp3_c
     ma_uint64 totalFramesRead = 0;
     ma_uint64 framesCapacity = 0;
     ma_int16* pFrames = NULL;
-    ma_int16 temp[4096];
+    ma_int16 temp[1152*2];
     MA_DR_MP3_ASSERT(pMP3 != NULL);
     for (;;) {
         ma_uint64 framesToReadRightNow = MA_DR_MP3_COUNTOF(temp) / pMP3->channels;
