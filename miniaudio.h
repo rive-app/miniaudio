@@ -65372,7 +65372,8 @@ MA_API ma_result ma_mp3_get_cursor_in_pcm_frames(ma_mp3* pMP3, ma_uint64* pCurso
 
     #if !defined(MA_NO_MP3)
     {
-        *pCursor = pMP3->dr.currentPCMFrame;
+        /* dr_mp3 counts the encoder delay its reads skip, so seeks compare against the trimmed cursor. */
+        *pCursor = pMP3->dr.currentPCMFrame > pMP3->dr.delayInPCMFrames ? pMP3->dr.currentPCMFrame - pMP3->dr.delayInPCMFrames : 0;
 
         return MA_SUCCESS;
     }
@@ -77221,6 +77222,9 @@ static void ma_engine_node_process_pcm_frames__sound(ma_node* pNode, const float
     seekTarget = ma_atomic_load_64(&pSound->seekTarget);
     if (seekTarget != MA_SEEK_TARGET_NONE) {
         ma_data_source_seek_to_pcm_frame(pSound->pDataSource, seekTarget);
+
+        /* Frames read ahead came from before the seek. */
+        pSound->processingCacheFramesRemaining = 0;
 
         /* Any time-dependant effects need to have their times updated. */
         ma_node_set_time(pSound, seekTarget);
