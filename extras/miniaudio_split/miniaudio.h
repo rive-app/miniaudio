@@ -6339,6 +6339,11 @@ Retrieves the decoder's output data format.
 MA_API ma_result ma_decoder_get_data_format(ma_decoder* pDecoder, ma_format* pFormat, ma_uint32* pChannels, ma_uint32* pSampleRate, ma_channel* pChannelMap, size_t channelMapCap);
 
 /*
+Retrieves the decoder's encoding data format.
+*/
+MA_API ma_result ma_decoder_get_encoding_format(ma_decoder* pDecoder, ma_encoding_format* pFormat);
+
+/*
 Retrieves the current position of the read cursor in PCM frames.
 */
 MA_API ma_result ma_decoder_get_cursor_in_pcm_frames(ma_decoder* pDecoder, ma_uint64* pCursor);
