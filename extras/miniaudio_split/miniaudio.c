@@ -53482,8 +53482,8 @@ static ma_result ma_mp3_post_init(ma_mp3* pMP3, const ma_decoding_backend_config
     ma_result result;
     ma_uint64 pcmFrameCount;
 
-    /* Some encoders, iTunes among them, count the Xing frame in its frame count. A seek table scans every frame anyway, so trust the scan. */
-    if (pConfig->seekPointCount > 0 && pMP3->dr.totalPCMFrameCount != MA_UINT64_MAX && ma_dr_mp3_get_mp3_and_pcm_frame_count(&pMP3->dr, NULL, &pcmFrameCount)) {
+    /* A seek table scans every frame anyway, so keep the count it finds. iTunes counts the Xing frame in its header's count, and a file with no header would scan at every length query. */
+    if (pConfig->seekPointCount > 0 && ma_dr_mp3_get_mp3_and_pcm_frame_count(&pMP3->dr, NULL, &pcmFrameCount)) {
         pMP3->dr.totalPCMFrameCount = pcmFrameCount;
     }
 
