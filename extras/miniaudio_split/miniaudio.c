@@ -53480,12 +53480,6 @@ static ma_result ma_mp3_generate_seek_table(ma_mp3* pMP3, const ma_decoding_back
 static ma_result ma_mp3_post_init(ma_mp3* pMP3, const ma_decoding_backend_config* pConfig, const ma_allocation_callbacks* pAllocationCallbacks)
 {
     ma_result result;
-    ma_uint64 pcmFrameCount;
-
-    /* A seek table scans every frame anyway, so keep the count it finds. iTunes counts the Xing frame in its header's count, and a file with no header would scan at every length query. */
-    if (pConfig->seekPointCount > 0 && ma_dr_mp3_get_mp3_and_pcm_frame_count(&pMP3->dr, NULL, &pcmFrameCount)) {
-        pMP3->dr.totalPCMFrameCount = pcmFrameCount;
-    }
 
     result = ma_mp3_generate_seek_table(pMP3, pConfig, pAllocationCallbacks);
     if (result != MA_SUCCESS) {
@@ -85133,6 +85127,7 @@ MA_API ma_bool32 ma_dr_mp3_calculate_seek_points(ma_dr_mp3* pMP3, ma_uint32* pSe
     if (!ma_dr_mp3_get_mp3_and_pcm_frame_count(pMP3, &totalMP3FrameCount, &totalPCMFrameCount)) {
         return MA_FALSE;
     }
+    pMP3->totalPCMFrameCount = totalPCMFrameCount;
     if (totalMP3FrameCount < MA_DR_MP3_SEEK_LEADING_MP3_FRAMES+1) {
         seekPointCount = 1;
         pSeekPoints[0].seekPosInBytes     = pMP3->streamStartOffset;

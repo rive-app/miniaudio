@@ -69,6 +69,24 @@ def clean(s):
 impl = impl[impl.index('\n') + 1:]
 h, c = rename(clean(header)), rename(clean(impl))
 
+# Ours on top. iTunes counts the Xing frame in its header's count, so a seek
+# table keeps the count its scan finds, which also spares a file with no header
+# a scan at every length query.
+PATCHES = [(
+    """    if (!ma_dr_mp3_get_mp3_and_pcm_frame_count(pMP3, &totalMP3FrameCount, &totalPCMFrameCount)) {
+        return MA_FALSE;
+    }
+""",
+    """    if (!ma_dr_mp3_get_mp3_and_pcm_frame_count(pMP3, &totalMP3FrameCount, &totalPCMFrameCount)) {
+        return MA_FALSE;
+    }
+    pMP3->totalPCMFrameCount = totalPCMFrameCount;
+""")]
+for old, new in PATCHES:
+    if c.count(old) != 1:
+        sys.exit('a patch no longer applies:\n' + old)
+    c = c.replace(old, new)
+
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 for path in ('miniaudio.h', 'extras/miniaudio_split/miniaudio.h', 'extras/miniaudio_split/miniaudio.c'):
     path = os.path.join(root, path)
