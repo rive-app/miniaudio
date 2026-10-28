@@ -53480,6 +53480,12 @@ static ma_result ma_mp3_generate_seek_table(ma_mp3* pMP3, const ma_decoding_back
 static ma_result ma_mp3_post_init(ma_mp3* pMP3, const ma_decoding_backend_config* pConfig, const ma_allocation_callbacks* pAllocationCallbacks)
 {
     ma_result result;
+    ma_uint64 pcmFrameCount;
+
+    /* Some encoders, iTunes among them, count the Xing frame in its frame count. A seek table scans every frame anyway, so trust the scan. */
+    if (pConfig->seekPointCount > 0 && pMP3->dr.totalPCMFrameCount != MA_UINT64_MAX && ma_dr_mp3_get_mp3_and_pcm_frame_count(&pMP3->dr, NULL, &pcmFrameCount)) {
+        pMP3->dr.totalPCMFrameCount = pcmFrameCount;
+    }
 
     result = ma_mp3_generate_seek_table(pMP3, pConfig, pAllocationCallbacks);
     if (result != MA_SUCCESS) {
